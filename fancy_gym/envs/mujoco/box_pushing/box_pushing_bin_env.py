@@ -4,6 +4,7 @@ import numpy as np
 from gym import utils, spaces
 from gym.envs.mujoco import MujocoEnv
 import mujoco
+from fancy_gym.envs.mujoco.box_pushing.obs_viewer import ObsViewer
 from fancy_gym.envs.mujoco.box_pushing.box_pushing_utils import (
     rot_to_quat,
     get_quaternion_error,
@@ -154,6 +155,36 @@ class BoxPushingBin(MujocoEnv, utils.EzPickle):
             'reward_info': reward_info
         }
         return obs, reward, episode_end, infos
+
+    def render(
+        self,
+        mode="obs_human",
+        width=224,
+        height=224,
+        camera_id=None,
+        camera_name=None,
+    ):
+        if mode != "obs_human" and mode != "obs":
+            return super().render(mode, width, height, camera_id, camera_name)
+
+        camera_id = self._mujoco_bindings.mj_name2id(
+            self.model,
+            self._mujoco_bindings.mjtObj.mjOBJ_CAMERA,
+            camera_name,
+        )
+        window_render = mode == "obs_human"
+        self._get_viewer("obs_human").render(
+            width=width, height=height, camera_id=camera_id, window_rend=window_render
+        )
+        rgb, depth = self._get_viewer("obs_human").read_pixels(width,  height, depth=True)
+        return rgb[::-1, :, :], depth[::-1, :]
+
+    def _get_viewer(self, mode, width=224, height=224):
+        self.viewer = self._viewers.get(mode)
+        if self.viewer is None and mode == "obs_human":
+            self.viewer = ObsViewer(self.model, self.data)
+            self._viewers[mode] = self.viewer
+        return super()._get_viewer(mode, width, height)
 
     def reset_model(self):
         # rest box to initial position
